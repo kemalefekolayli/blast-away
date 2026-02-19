@@ -17,6 +17,9 @@ public class CellSpawner : MonoBehaviour
                 Vector3 originalPos = gridObject.transform.position;
                 Vector3 worldPos = new Vector3(originalPos.x + x * cellOffset_x, originalPos.y + y * cellOffset_y, originalPos.z);
                 GameObject newCell = Instantiate(cellPrefab, worldPos, Quaternion.identity, gridObject.transform);
+
+                Vector2Int cellGridPos = new Vector2Int(x, y);
+                newCell.GetComponent<GridCell>().SetGridPosition(cellGridPos);
                 gridObject.AddCell(newCell.GetComponent<GridCell>());
             }
         }

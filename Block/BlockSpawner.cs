@@ -21,7 +21,7 @@ public class BlockSpawner : MonoBehaviour
     }
 
     // Shape'e göre Block ve tile'larını oluşturur
-    public Block SpawnBlock(BlockShape shape, int colorIndex, Vector2 blockCenter)
+    public Block SpawnBlock(BlockShape shape,  Vector2 blockCenter)
     {
         // Önce Block'u spawn et
         Block newBlock = Instantiate(blockPrefab, blockContainer);

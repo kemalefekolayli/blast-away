@@ -26,11 +26,12 @@ public class Tile : MonoBehaviour
         this.colorIndex = colorIndex;
         this.gridPosition = gridPos;
         
-        if (sprite != null)
+        if (sprite == null)
+            Debug.LogWarning($"Tile.Initialize: sprite is null for colorIndex {colorIndex}. TileData'daki sprite atanmış mı?");
+        else
             tileImage.sprite = sprite;
-        
+    
         transform.localScale = Vector3.one;
-        
         gameObject.SetActive(true);
     }
     
