@@ -12,7 +12,6 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     public BlockShadow blockShadow;
     
     private Vector2 draggedTileOffset;
-    private List<Vector2> tileCanvasPositions = new List<Vector2>();
 
     [Header("Snap Ayarı")]
     public float snapThreshold = 80f;
@@ -112,10 +111,9 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         blockShadow.RemoveShadow();
 
         if (CanWeSnapHere(mouseCanvasPos, eventData, out Vector2 validSnapPos)){
-            PlaceTheBlock(validSnapPos, eventData);
+            PlaceTheBlock(_lastValidAnchorGridPos, eventData);
         }
         else{
-            // Dolu cell var veya çok uzak — geri dön ve eski sıraya dön
             ReturnToStartPos();
         }
     }
@@ -127,50 +125,68 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         transform.SetSiblingIndex(originalSiblingIndex);
         block.Drop();
     }
-    private void CalculateTileCanvasPosition(Vector2 blockAnchor)
-    {
-        tileCanvasPositions.Clear();
 
-        foreach (Tile tile in block.tilesInShape)
+    // Sürüklenen tile'ın shape offset'ini döndürür (BlockShapeData içindeki offset)
+    private Vector2Int GetDraggedTileShapeOffset()
+    {
+        Vector2Int[] offsets = BlockShapeData.Offsets[(BlockShape)block.blockShapeIndex];
+        
+        // Sürüklenen tile'ın hangi offset'e karşılık geldiğini bul
+        Tile closestTile = null;
+        float closestDist = float.MaxValue;
+        int closestIdx = 0;
+
+        for (int i = 0; i < block.tilesInShape.Count; i++)
         {
-            RectTransform tileRect = tile.GetComponent<RectTransform>();
-            // Tile'ın canvas'taki beklenen konumu = bloğun hedef anchor'u + tile'ın blok içindeki yerel ofseti
-            Vector2 expectedPos = blockAnchor + tileRect.anchoredPosition;
-            tileCanvasPositions.Add(expectedPos);
+            RectTransform tileRect = block.tilesInShape[i].GetComponent<RectTransform>();
+            float dist = Vector2.Distance(tileRect.anchoredPosition, draggedTileOffset);
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closestIdx = i;
+            }
         }
+
+        return offsets[closestIdx];
     }
 
-    private void PlaceTheBlock(Vector2 blockAnchor, PointerEventData eventData)
+    private void PlaceTheBlock(Vector2Int anchorGridPos, PointerEventData eventData)
     {
-        rectTransform.anchoredPosition = blockAnchor;
-
-        CalculateTileCanvasPosition(blockAnchor);
+        Vector2Int[] offsets = BlockShapeData.Offsets[(BlockShape)block.blockShapeIndex];
+        Grid.Instance.OccupyShape(anchorGridPos, offsets, block.tilesInShape);
         
-        bool success = Grid.Instance.OccupyCells(tileCanvasPositions, block.tilesInShape, snapThreshold);
+        // Bloğu grid'in referans pozisyonuna taşı (tile'lar zaten OccupyShape'de yerleşti)
         block.SetPlaced(true);
         GameEvents.BlockPlaced();
-        
     }
 
     public bool CanWeSnapHere(Vector2 mouseCanvasPos, PointerEventData eventData, out Vector2 validSnapPos)
     {
         validSnapPos = Vector2.zero;
-        Vector2? snapPos = Grid.Instance.GetClosestCellPosition(mouseCanvasPos);
-
-        if (snapPos.HasValue && Vector2.Distance(mouseCanvasPos, snapPos.Value) <= snapThreshold)
-        {
-            Vector2 blockAnchor = snapPos.Value - draggedTileOffset;
-            
-            CalculateTileCanvasPosition(blockAnchor);
-
-            bool success = Grid.Instance.CanOccupyCells(tileCanvasPositions, block.tilesInShape, snapThreshold);
-            if (success)
-            {
-                validSnapPos = blockAnchor;
-                return true;
-            }
-        }
         
-        return false;
+        // Mouse'a en yakın grid hücresini bul
+        Vector2Int? cellGridPos = Grid.Instance.GetClosestCellGridPos(mouseCanvasPos, snapThreshold);
+        if (!cellGridPos.HasValue) return false;
+
+        // Sürüklenen tile'ın shape offset'ini çıkar → bloğun anchor grid pozisyonu
+        Vector2Int dragOffset = GetDraggedTileShapeOffset();
+        Vector2Int anchorGridPos = cellGridPos.Value - dragOffset;
+
+        // Şekil bu pozisyona sığıyor mu? (grid koordinat bazlı — kesin sonuç)
+        Vector2Int[] offsets = BlockShapeData.Offsets[(BlockShape)block.blockShapeIndex];
+        if (!Grid.Instance.CanOccupyShape(anchorGridPos, offsets))
+            return false;
+
+        // Sığıyorsa, shadow için canvas pozisyonunu hesapla
+        // Anchor cell'in canvas pozisyonundan draggedTileOffset'i çıkar
+        Vector2 anchorCellCanvasPos = Grid.Instance.GetCellCanvasPosition(anchorGridPos);
+        validSnapPos = anchorCellCanvasPos;
+        
+        // anchorGridPos'u geçici olarak sakla
+        _lastValidAnchorGridPos = anchorGridPos;
+
+        return true;
     }
+
+    private Vector2Int _lastValidAnchorGridPos;
 }

@@ -20,6 +20,8 @@ public class GridManager : MonoBehaviour
     {
         CheckColums();
         CheckRows();
+        // Patlamalar bitti, tahta son halini aldı
+        GameEvents.OnExplosionsResolved?.Invoke();
     }
 
     public void CheckRows()

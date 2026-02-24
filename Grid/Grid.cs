@@ -138,6 +138,78 @@ public class Grid : MonoBehaviour
         }
         return false;
     }
+
+    // Tahtanın doluluk oranını döndürür (0.0 = boş, 1.0 = tamamen dolu)
+    public float GetOccupancyRate()
+    {
+        int occupied = 0;
+        int total = width * height;
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                if (gridCells2D[x, y].isOccupied)
+                    occupied++;
+        return (float)occupied / total;
+    }
+
+    // Canvas pozisyonuna en yakın cell'in grid koordinatını döndürür
+    public Vector2Int? GetClosestCellGridPos(Vector2 canvasPos, float maxDistance)
+    {
+        if (!cacheReady) return null;
+
+        int closestIndex = -1;
+        float closestDist = float.MaxValue;
+
+        for (int i = 0; i < cachedCellCanvasPositions.Length; i++)
+        {
+            float dist = Vector2.SqrMagnitude(canvasPos - cachedCellCanvasPositions[i]);
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                closestIndex = i;
+            }
+        }
+
+        if (closestIndex == -1) return null;
+        if (Mathf.Sqrt(closestDist) > maxDistance) return null;
+
+        return gridCells[closestIndex].gridPosition;
+    }
+
+    // Bir şeklin belirli bir grid pozisyonuna yerleşip yerleşemeyeceğini kontrol eder
+    public bool CanOccupyShape(Vector2Int anchorGridPos, Vector2Int[] offsets)
+    {
+        foreach (var offset in offsets)
+        {
+            int nx = anchorGridPos.x + offset.x;
+            int ny = anchorGridPos.y + offset.y;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height)
+                return false;
+            if (gridCells2D[nx, ny].isOccupied)
+                return false;
+        }
+        return true;
+    }
+
+    // Bir şekli grid üzerine yerleştirir
+    public void OccupyShape(Vector2Int anchorGridPos, Vector2Int[] offsets, List<Tile> tiles)
+    {
+        for (int i = 0; i < offsets.Length; i++)
+        {
+            int nx = anchorGridPos.x + offsets[i].x;
+            int ny = anchorGridPos.y + offsets[i].y;
+            gridCells2D[nx, ny].SetOccupied(tiles[i]);
+
+            // Tile'ı cell'in dünya pozisyonuna taşı
+            tiles[i].transform.position = gridCells2D[nx, ny].worldPosition;
+        }
+    }
+
+    // Grid pozisyonundaki cell'in canvas pozisyonunu döndürür
+    public Vector2 GetCellCanvasPosition(Vector2Int gridPos)
+    {
+        int idx = gridPos.x * height + gridPos.y;
+        return cachedCellCanvasPositions[idx];
+    }
     // Belirtilen canvas pozisyonlarındaki cell'leri dolu işaretle
     // snapThreshold: her tile'ın cell'e maksimum uzaklığı (piksel)
     public bool OccupyCells(List<Vector2> tileCanvasPositions, List<Tile> tiles, float snapThreshold)

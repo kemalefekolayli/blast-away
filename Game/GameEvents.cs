@@ -12,6 +12,8 @@ public static class GameEvents
     public static Action NoBlocksLeft;
     public static Action OnScoreUpdate;
     public static Action OnGameOver;
+    public static Action<int> OnComboUpdate; // int = multiplier değeri
+    public static Action OnExplosionsResolved; // Patlamalar bittikten sonra
 
     public static void ScoreUpdate()
     {

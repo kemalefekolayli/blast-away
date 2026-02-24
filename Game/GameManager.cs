@@ -14,18 +14,19 @@ public class GameManager : MonoBehaviour
     {
         GameEvents.OnBlockPlaced += OnBlockPlaced;
         GameEvents.NoBlocksLeft += OnNoBlocksLeft;
+        GameEvents.OnExplosionsResolved += CheckForDeadlock;
     }
     private void OnDisable()
     {
         GameEvents.OnBlockPlaced -= OnBlockPlaced;
         GameEvents.NoBlocksLeft -= OnNoBlocksLeft;
+        GameEvents.OnExplosionsResolved -= CheckForDeadlock;
     }
     private void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject);
         }
         else
         {
@@ -76,10 +77,14 @@ public class GameManager : MonoBehaviour
         if (activeBlockCount <= 0)
         {
             GameEvents.TriggerNoBlocksLeft();
-            return;
         }
+    }
 
-        // Kalan yerleştirilmemiş bloklardan en az biri tahtaya sığıyor mu?
+    // Patlamalar bittikten sonra kalan bloklar sığıyor mu kontrol et
+    void CheckForDeadlock()
+    {
+        if (activeBlockCount <= 0) return; // Tur zaten bitti, SpawnBlocks halleder
+
         Block[] allBlocks = FindObjectsByType<Block>(FindObjectsSortMode.None);
         bool anyRemainingFits = false;
         foreach (Block b in allBlocks)
@@ -110,37 +115,75 @@ public class GameManager : MonoBehaviour
     {
         shapes.Clear();
 
-        // Her şeklin ağırlığı = tile sayısı (büyük parçalara daha yüksek şans)
         var allShapes = (BlockShape[])System.Enum.GetValues(typeof(BlockShape));
-        List<BlockShape> weightedPool = new List<BlockShape>();
+        float occupancyRate = Grid.Instance.GetOccupancyRate();
 
-        foreach (BlockShape shape in allShapes)
-        {
-            int tileCount = BlockShapeData.Offsets[shape].Length;
-            for (int w = 0; w < tileCount; w++)
-                weightedPool.Add(shape);
-        }
-
-        const int maxAttempts = 40;
+        const int maxAttempts = 50;
 
         for (int i = 0; i < count; i++)
         {
-            BlockShape picked = BlockShape.Single; // fallback
-            bool found = false;
+            // Sığabilen şekilleri ve ağırlıklarını hesapla
+            List<BlockShape> candidates = new List<BlockShape>();
+            List<float> weights = new List<float>();
+            float totalWeight = 0f;
 
-            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            foreach (BlockShape shape in allShapes)
             {
-                BlockShape candidate = weightedPool[Random.Range(0, weightedPool.Count)];
-                if (Grid.Instance.CanShapeFitAnywhere(candidate))
+                if (!Grid.Instance.CanShapeFitAnywhere(shape)) continue;
+
+                int tileCount = BlockShapeData.Offsets[shape].Length;
+                float weight;
+
+                if (occupancyRate < 0.4f)
                 {
-                    picked = candidate;
-                    found = true;
+                    // Tahta boşken büyük parçalara ağırlık ver
+                    weight = tileCount * tileCount;
+                }
+                else if (occupancyRate < 0.7f)
+                {
+                    // Orta dolulukta dengeli
+                    weight = tileCount;
+                }
+                else
+                {
+                    // Tahta doluyken küçük parçalara ağırlık ver
+                    weight = 1f / tileCount;
+                }
+
+                // Şekil bazlı ayarlar
+                string name = shape.ToString();
+                if (name.StartsWith("Lshape"))
+                    weight *= 0.3f; // L şekilleri daha az gelsin
+                else if (shape == BlockShape.Square_2x2 || 
+                         shape == BlockShape.RectangleVertical_2x3 || 
+                         shape == BlockShape.RectangleHorizontal_2x3)
+                    weight *= 2f; // Kare ve dikdörtgenler daha çok gelsin
+
+                candidates.Add(shape);
+                weights.Add(weight);
+                totalWeight += weight;
+            }
+
+            if (candidates.Count == 0)
+            {
+                shapes.Add((int)BlockShape.Single);
+                continue;
+            }
+
+            // Ağırlıklı rastgele seçim
+            float roll = Random.Range(0f, totalWeight);
+            float cumulative = 0f;
+            BlockShape picked = candidates[0];
+
+            for (int j = 0; j < candidates.Count; j++)
+            {
+                cumulative += weights[j];
+                if (roll <= cumulative)
+                {
+                    picked = candidates[j];
                     break;
                 }
             }
-
-            if (!found)
-                Debug.LogWarning("Tahta çok dolu — fallback olarak Single veriliyor.");
 
             shapes.Add((int)picked);
         }
