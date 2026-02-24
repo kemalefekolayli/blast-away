@@ -10,6 +10,13 @@ public static class GameEvents
     public static Action OnCellFilled;
     public static Action OnCellCleared;
     public static Action NoBlocksLeft;
+    public static Action OnScoreUpdate;
+    public static Action OnGameOver;
+
+    public static void ScoreUpdate()
+    {
+        OnScoreUpdate?.Invoke();
+    }
 
     public static void TriggerBlockPickedUp()
     {

@@ -56,5 +56,8 @@ public class Block : MonoBehaviour
         // placed ise dragScale'de kalır
     }
 
-
+    public void SetActive(bool value)
+    {
+        gameObject.SetActive(value);
+    }
 }

@@ -93,22 +93,61 @@ public class Grid : MonoBehaviour
         return closestIndex;
     }
 
-    // Belirtilen canvas pozisyonlarındaki cell'leri dolu işaretle
-    // snapThreshold: her tile'ın cell'e maksimum uzaklığı (piksel)
-    public bool TryOccupyCells(List<Vector2> tileCanvasPositions, List<Tile> tiles, float snapThreshold)
+    public bool CanOccupyCells(List<Vector2> tileCanvasPositions, List<Tile> tiles, float snapThreshold)
     {
         List<(int idx, Tile tile)> candidates = new List<(int, Tile)>();
 
-        for (int i = 0; i < tileCanvasPositions.Count; i++)
+        for(int i = 0 ; i < tileCanvasPositions.Count ; i++)
         {
             int idx = GetClosestCellIndex(tileCanvasPositions[i]);
-            if (idx == -1) return false;
+            if(idx == -1) return false;
 
             float dist = Vector2.Distance(tileCanvasPositions[i], cachedCellCanvasPositions[idx]);
             if (dist > snapThreshold) return false;
 
             if (gridCells[idx].isOccupied) return false;
 
+            candidates.Add((idx, tiles[i]));
+        }
+
+        return true;
+    }
+
+    // Bu şekil, tahta üzerinde herhangi bir pozisyona sığıyor mu?
+    public bool CanShapeFitAnywhere(BlockShape shape)
+    {
+        Vector2Int[] offsets = BlockShapeData.Offsets[shape];
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                bool fits = true;
+                foreach (var offset in offsets)
+                {
+                    int nx = x + offset.x;
+                    int ny = y + offset.y;
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= height || gridCells2D[nx, ny].isOccupied)
+                    {
+                        fits = false;
+                        break;
+                    }
+                }
+                if (fits) return true;
+            }
+        }
+        return false;
+    }
+    // Belirtilen canvas pozisyonlarındaki cell'leri dolu işaretle
+    // snapThreshold: her tile'ın cell'e maksimum uzaklığı (piksel)
+    public bool OccupyCells(List<Vector2> tileCanvasPositions, List<Tile> tiles, float snapThreshold)
+    {
+        List<(int idx, Tile tile)> candidates = new List<(int, Tile)>();
+
+        for (int i = 0; i < tileCanvasPositions.Count; i++)
+        {
+            int idx = GetClosestCellIndex(tileCanvasPositions[i]);
+            if(idx == -1) return false;
             candidates.Add((idx, tiles[i]));
         }
 
